@@ -1,9 +1,20 @@
-const fs = require("fs").promises;
-const path = require("path");
-const uniqid = require("uniqid");
+const mongoose = require("mongoose");
 const Joi = require("joi");
 
-const contactPath = path.join(__dirname, "contacts.json");
+const contactSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, "Set name for contact"],
+  },
+  email: String,
+  phone: String,
+  favorite: {
+    type: Boolean,
+    default: false,
+  },
+});
+
+const Contact = mongoose.model("Contact", contactSchema, "contacts");
 
 const nameSchema = Joi.string()
   .min(2)
@@ -47,100 +58,8 @@ const validateContactUpdate = (body) => {
   return schema.validate(body, { abortEarly: false });
 };
 
-const readContactsFile = async () => {
-  try {
-    const data = await fs.readFile(contactPath, "utf-8");
-    return JSON.parse(data);
-  } catch (error) {
-    throw new Error("Could not read contacts file");
-  }
-};
-
-const listContacts = async () => {
-  return await readContactsFile();
-};
-
-const getContactById = async (contactId) => {
-  const contacts = await readContactsFile();
-  const contact = contacts.find((con) => con.id === contactId);
-  return contact;
-};
-
-const removeContact = async (contactId) => {
-  let contacts = await readContactsFile();
-  const contactToRemove = contacts.find((con) => con.id === contactId);
-
-  if (!contactToRemove) {
-    throw Error("Contact not found");
-  }
-
-  contacts = contacts.filter((con) => con.id !== contactId);
-  await fs.writeFile(contactPath, JSON.stringify(contacts, null, 2));
-
-  return true;
-};
-
-const addContact = async (body) => {
-  const { error } = validateContactAdd(body);
-  if (error) {
-    throw new Error(error.details[0].message);
-  }
-
-  try {
-    const contacts = await readContactsFile();
-    const { name, email, phone } = body;
-
-    const newContact = {
-      id: uniqid(),
-      name,
-      email,
-      phone,
-    };
-    contacts.push(newContact);
-
-    await fs.writeFile(contactPath, JSON.stringify(contacts, null, 2));
-    return newContact;
-  } catch (error) {
-    throw new Error("Could not add contact");
-  }
-};
-
-const updateContact = async (contactId, body) => {
-  const { error } = validateContactUpdate(body);
-  if (error) {
-    throw new Error(error.details[0].message);
-  }
-
-  try {
-    const contacts = await readContactsFile();
-    const contactToUpdate = contacts.find((con) => con.id === contactId);
-    if (!contactToUpdate) {
-      throw new Error("Contact not found");
-    }
-
-    for (const field in body) {
-      if (field in contactToUpdate) {
-        contactToUpdate[field] = body[field];
-      }
-    }
-
-    await fs.writeFile(contactPath, JSON.stringify(contacts, null, 2));
-    return contactToUpdate;
-  } catch (error) {
-    if (error.message === "Contact not found") {
-      throw new Error("Contact not found");
-    } else {
-      throw new Error("Could not update contact");
-    }
-  }
-};
-
 module.exports = {
+  Contact,
   validateContactAdd,
   validateContactUpdate,
-  listContacts,
-  getContactById,
-  removeContact,
-  addContact,
-  updateContact,
 };
