@@ -13,7 +13,8 @@ const {
 
 const getAllContacts = async (req, res, next) => {
   try {
-    const contacts = await fetchContacts();
+    const userId = req.user._id;
+    const contacts = await fetchContacts(userId);
     res.status(200).json(contacts);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -22,7 +23,8 @@ const getAllContacts = async (req, res, next) => {
 
 const getContact = async (req, res, next) => {
   try {
-    const contact = await fetchContact(req.params.contactId);
+    const userId = req.user._id;
+    const contact = await fetchContact(req.params.contactId, userId);
     if (contact) {
       res.status(200).json(contact);
     } else {
@@ -35,6 +37,7 @@ const getContact = async (req, res, next) => {
 
 const createContact = async (req, res, next) => {
   const { name, email, phone } = req.body;
+  const userId = req.user._id;
 
   try {
     const { error } = validateContactAdd({ name, email, phone });
@@ -42,7 +45,7 @@ const createContact = async (req, res, next) => {
       return res.status(400).json({ message: error.message });
     }
 
-    const newContact = await insertContact({ name, email, phone });
+    const newContact = await insertContact({ name, email, phone, userId });
     res.status(201).json(newContact);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -52,6 +55,7 @@ const createContact = async (req, res, next) => {
 const putContact = async (req, res, next) => {
   const contactId = req.params.contactId;
   const updatedFields = req.body;
+  const userId = req.user._id;
 
   try {
     const { error } = validateContactUpdate(updatedFields);
@@ -62,6 +66,7 @@ const putContact = async (req, res, next) => {
     const updatedContact = await updateContact({
       id: contactId,
       toUpdate: updatedFields,
+      userId,
       upsert: true,
     });
 
@@ -77,8 +82,10 @@ const putContact = async (req, res, next) => {
 
 const deleteContact = async (req, res, next) => {
   const id = req.params.contactId;
+  const userId = req.user._id;
+
   try {
-    const remove = await removeContact(id);
+    const remove = await removeContact(id, userId);
     if (remove) {
       res.status(200).json({ message: "Contact deleted" });
     } else {
@@ -92,12 +99,17 @@ const deleteContact = async (req, res, next) => {
 const patchContact = async (req, res, next) => {
   const contactId = req.params.contactId;
   const favorite = req.body;
+  const userId = req.user._id;
 
   if (favorite === undefined) {
     return res.status(400).json({ message: "missing field favorite" });
   }
   try {
-    const result = await updateStatusContact({ contactId, body: favorite });
+    const result = await updateStatusContact({
+      contactId,
+      body: favorite,
+      userId,
+    });
     if (result) {
       res.status(200).json(result);
     } else {
