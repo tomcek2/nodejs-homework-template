@@ -10,16 +10,18 @@ const {
   patchContact,
 } = require("../../controllers/contacts/index");
 
-router.get("/", getAllContacts);
+const authenticateToken = require("../../middleware/authenticateToken");
 
-router.get("/:contactId", getContact);
+router.get("/", authenticateToken, getAllContacts);
 
-router.post("/", createContact);
+router.get("/:contactId", authenticateToken, getContact);
 
-router.delete("/:contactId", deleteContact);
+router.post("/", authenticateToken, createContact);
 
-router.put("/:contactId", putContact);
+router.delete("/:contactId", authenticateToken, deleteContact);
 
-router.patch("/:contactId/favorite", patchContact);
+router.put("/:contactId", authenticateToken, putContact);
+
+router.patch("/:contactId/favorite", authenticateToken, patchContact);
 
 module.exports = router;
