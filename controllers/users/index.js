@@ -1,5 +1,10 @@
 const bcrypt = require("bcrypt");
+const jimp = require("jimp");
 const jwt = require("jsonwebtoken");
+const gravatar = require("gravatar");
+const multer = require("multer");
+
+const { avatarUpload } = require("../../config/multer");
 const { User } = require("../../models/user");
 const { validateUser } = require("../../models/user");
 const {
@@ -24,10 +29,15 @@ const userSignUp = async (req, res) => {
   const saltRounds = 10;
   const hashedPassword = await bcrypt.hash(password, saltRounds);
 
+  const avatarURL = gravatar.url(email, {
+    protocol: "https",
+  });
+
   const newUser = new User({
     email: email,
     password: hashedPassword,
     subscription: "starter",
+    avatarURL: avatarURL,
   });
 
   try {
@@ -36,6 +46,7 @@ const userSignUp = async (req, res) => {
       user: {
         email: newUser.email,
         subscription: newUser.subscription,
+        avatarURL: newUser.avatarURL,
       },
     });
   } catch (error) {
@@ -112,9 +123,38 @@ const getCurrentUser = async (req, res) => {
   }
 };
 
+const avatarChange = async (req, res) => {
+  try {
+    avatarUpload(req, res, async function (err) {
+      if (err instanceof multer.MulterError) {
+        return res.status(400).json({ message: "Multer error" });
+      } else if (err) {
+        return res.status(500).json({ message: err.message });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const userId = req.user._id;
+
+      const image = await jimp.read(req.file.path);
+      await image.resize(250, 250).writeAsync(req.file.path);
+
+      const avatarURL = `/avatars/${req.file.filename}`;
+      await User.findByIdAndUpdate(userId, { avatarURL });
+
+      res.status(200).json({ avatarURL });
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   userSignUp,
   userLogin,
   userLogout,
   getCurrentUser,
+  avatarChange,
 };
