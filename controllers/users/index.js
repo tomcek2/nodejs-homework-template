@@ -3,6 +3,7 @@ const jimp = require("jimp");
 const jwt = require("jsonwebtoken");
 const gravatar = require("gravatar");
 const multer = require("multer");
+const path = require("path");
 
 const { avatarUpload } = require("../../config/multer");
 const { User } = require("../../models/user");
@@ -124,8 +125,8 @@ const getCurrentUser = async (req, res) => {
 };
 
 const avatarChange = async (req, res) => {
-  try {
-    avatarUpload(req, res, async function (err) {
+  avatarUpload(req, res, async function (err) {
+    try {
       if (err instanceof multer.MulterError) {
         return res.status(400).json({ message: "Multer error" });
       } else if (err) {
@@ -141,14 +142,24 @@ const avatarChange = async (req, res) => {
       const image = await jimp.read(req.file.path);
       await image.resize(250, 250).writeAsync(req.file.path);
 
-      const avatarURL = `/avatars/${req.file.filename}`;
+      const avatarName = `avatar_${userId}_${Date.now()}${path.extname(
+        req.file.originalname
+      )}`;
+      const avatarPath = path.resolve(
+        __dirname,
+        "../../public/avatars",
+        avatarName
+      );
+      await image.writeAsync(avatarPath);
+
+      const avatarURL = `/avatars/${avatarName}`;
       await User.findByIdAndUpdate(userId, { avatarURL });
 
       res.status(200).json({ avatarURL });
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
 };
 
 module.exports = {
