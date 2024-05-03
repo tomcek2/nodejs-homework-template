@@ -9,6 +9,9 @@ const {
   userLogout,
   getCurrentUser,
   avatarChange,
+  verifyUser,
+  resendVerificationEmail,
+  validateResendEmailRequest,
 } = require("../../controllers/users/index");
 
 router.post("/signup", userSignUp);
@@ -20,5 +23,9 @@ router.get("/logout", authenticateToken, userLogout);
 router.get("/current", authenticateToken, getCurrentUser);
 
 router.patch("/avatars", authenticateToken, avatarChange);
+
+router.post("/verify", validateResendEmailRequest, resendVerificationEmail);
+
+router.get("/verify/:verificationToken", verifyUser);
 
 module.exports = router;

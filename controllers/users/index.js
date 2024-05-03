@@ -4,6 +4,8 @@ const jwt = require("jsonwebtoken");
 const gravatar = require("gravatar");
 const multer = require("multer");
 const path = require("path");
+const { customAlphabet } = require("nanoid");
+const Joi = require("joi");
 
 const { avatarUpload } = require("../../config/multer");
 const { User } = require("../../models/user");
@@ -13,6 +15,12 @@ const {
   createUser,
   findUser,
 } = require("../users/services");
+const { sendVerificationEmail } = require("../../utils/email");
+
+function generateVerificationToken() {
+  const nanoid = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 24);
+  return nanoid();
+}
 
 const userSignUp = async (req, res) => {
   const { email, password } = req.body;
@@ -27,6 +35,8 @@ const userSignUp = async (req, res) => {
     return res.status(409).json({ message: "Email in use" });
   }
 
+  const verificationToken = generateVerificationToken();
+
   const saltRounds = 10;
   const hashedPassword = await bcrypt.hash(password, saltRounds);
 
@@ -39,15 +49,18 @@ const userSignUp = async (req, res) => {
     password: hashedPassword,
     subscription: "starter",
     avatarURL: avatarURL,
+    verificationToken: verificationToken,
   });
 
   try {
     await createUser(newUser);
+    await sendVerificationEmail(newUser.email, verificationToken);
     res.status(201).json({
       user: {
         email: newUser.email,
         subscription: newUser.subscription,
         avatarURL: newUser.avatarURL,
+        verificationToken: verificationToken,
       },
     });
   } catch (error) {
@@ -66,6 +79,12 @@ const userLogin = async (req, res) => {
   const user = await checkExistingUser(email);
   if (!user) {
     return res.status(401).json({ message: "Email or password is wrong" });
+  }
+
+  if (!user || !user.verify) {
+    return res
+      .status(401)
+      .json({ message: "Email not verified or user not found" });
   }
 
   const passwordMatch = await bcrypt.compare(password, user.password);
@@ -162,10 +181,73 @@ const avatarChange = async (req, res) => {
   });
 };
 
+const verifyUser = async (req, res) => {
+  try {
+    const { verificationToken } = req.params;
+
+    const user = await User.findOne({ verificationToken });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.verify = true;
+    user.verificationToken = "null";
+
+    await user.save();
+
+    res.status(200).json({ message: "Verification successful" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const resendEmailValidationSchema = Joi.object({
+  email: Joi.string().email().required(),
+});
+
+const validateResendEmailRequest = (req, res, next) => {
+  const { error } = resendEmailValidationSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ message: error.details[0].message });
+  }
+  next();
+};
+
+const resendVerificationEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const existingUser = await User.findOne({ email });
+
+    if (!existingUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (existingUser.verify) {
+      return res
+        .status(400)
+        .json({ message: "Verification has already been passed" });
+    }
+
+    await sendVerificationEmail(
+      existingUser.email,
+      existingUser.verificationToken
+    );
+
+    res.status(200).json({ message: "Verification email sent" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   userSignUp,
   userLogin,
   userLogout,
   getCurrentUser,
   avatarChange,
+  verifyUser,
+  resendVerificationEmail,
+  validateResendEmailRequest,
 };
